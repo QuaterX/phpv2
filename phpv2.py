@@ -1,5 +1,4 @@
 import re
-
 import mysql.connector
 from appJar import gui
 
@@ -9,30 +8,44 @@ dblist = list()
 tblist = list()
 
 
-def databases():
-    query = mydblogin.cursor()
-    query.execute("SHOW DATABASES")
-    for database_instances in query:
-        dblist.append(database_instances)
+# It's a class that will contain any methods related to databases and it's data
+class DataQuery:
+    @staticmethod
+    def databases():
+        query = mydblogin.cursor()
+        query.execute("SHOW DATABASES")
+        for database_instances in query:
+            dblist.append(database_instances)
+
+    @staticmethod
+    def tables():
+        tblist_length = len(tblist)
+        tblist.clear()
+
+        database = app.getOptionBox("Databases")
+        dbname = re.sub("[(,)]", "", database)
+
+        query = mydblogin.cursor()
+        sql = "SELECT table_name FROM information_schema.tables WHERE table_schema = " + dbname
+
+        query.execute(sql)
+        for instances in query:
+            tblist.append(instances)
+        if tblist_length > 0:
+            app.changeOptionBox("Tables", tblist)
+
+    @staticmethod
+    def databaselogin(hostname, username, password):
+        global mydblogin
+        mydblogin = mysql.connector.connect(
+            host=hostname,
+            user=username,
+            password=password
+        )
+        gui.initialize_main()
 
 
-def tables():
-    tblist_length = len(tblist)
-    tblist.clear()
-
-    database = app.getOptionBox("Databases")
-    dbname = re.sub("[(,)]", "", database)
-
-    query = mydblogin.cursor()
-    sql = "SELECT table_name FROM information_schema.tables WHERE table_schema = " + dbname
-
-    query.execute(sql)
-    for instances in query:
-        tblist.append(instances)
-    if tblist_length > 0:
-        app.changeOptionBox("Tables", tblist)
-
-
+# It's a class containing gui methods for subwindows and main window
 class GuiClass:
 
     @staticmethod
@@ -40,12 +53,12 @@ class GuiClass:
         app.setBg("orange")
         app.setFont(18)
 
-        databases()
+        data.databases()
 
         app.addOptionBox("Databases", dblist)
-        app.setOptionBoxChangeFunction("Databases", tables)
+        app.setOptionBoxChangeFunction("Databases", data.tables)
 
-        tables()
+        data.tables()
 
         app.addOptionBox("Tables", tblist)
 
@@ -77,7 +90,7 @@ class GuiClass:
 
         app.addLabel("sql_title", "SQL query executor")
         app.addScrolledTextArea("SQL")
-        app.addNamedButton("Submit", "sql_submit" , button.sql_submit)
+        app.addNamedButton("Submit", "sql_submit", button.sql_submit)
 
         app.stopSubWindow()
 
@@ -94,6 +107,7 @@ class GuiClass:
         app.showSubWindow("SQLQuery")
 
 
+# It's a class for methods that will be called upon pressing corresponding buttons
 class ButtonPress:
     @staticmethod
     def cancel():
@@ -107,7 +121,7 @@ class ButtonPress:
             passw = app.getEntry("Password")
         else:
             passw = ""
-        databaselogin(ip, user, passw)
+        data.databaselogin(ip, user, passw)
 
     @staticmethod
     def sql_submit():
@@ -121,19 +135,11 @@ class ButtonPress:
                 gui.sql_faliure()
 
 
-def databaselogin(hostname, username, password):
-    global mydblogin
-    mydblogin = mysql.connector.connect(
-        host=hostname,
-        user=username,
-        password=password
-    )
-    gui.initialize_main()
-
-
+# Naming for all classes
+data = DataQuery
 button = ButtonPress
-
 gui = GuiClass
-gui.login_subwindow()
 
+# App is started here with the login subwindow as it's starting window
+gui.login_subwindow()
 app.go(startWindow="Login")
