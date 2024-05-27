@@ -1,5 +1,7 @@
 import re
 
+import errno
+
 import mysql.connector
 from appJar import gui
 
@@ -115,14 +117,25 @@ class DataQuery:
                     sql += " " + indexes[loops] + ", "
                     loops += 1
 
-
-
         query = mydblogin.cursor()
 
         try:
             query.execute(sql)
         except:
             print("Something went wrong    " + sql)
+
+    @staticmethod
+    def column_select():
+        sql = ("SELECT column_name FROM information_schema.columns WHERE table_name = '" +
+               str(app.getOptionBox("Tables")) + "' && column_key = 'PRI'")
+        # print(sql)
+
+        query = mydblogin.cursor()
+        query.execute(sql)
+
+        for instances in query:
+            
+
 
     @staticmethod
     def database_login(hostname, username, password):
@@ -145,11 +158,13 @@ class GuiClass:
 
         data.databases()
         app.addOptionBox("Databases", dblist)
-        app.setOptionBoxChangeFunction("Databases", data.tables)
-        app.setOptionBoxChangeFunction("Databases", data.use_database)
+        # app.setOptionBoxChangeFunction("Databases", data.tables)
+        # app.setOptionBoxChangeFunction("Databases", data.use_database)
+        app.setOptionBoxChangeFunction("Databases", event.database_change)
         data.use_database()
 
         app.addOptionBox("Tables", tblist)
+        app.setOptionBoxChangeFunction("Tables", event.table_change)
         data.tables()
 
         app.hideSubWindow("Login")
@@ -280,14 +295,30 @@ class ButtonPress:
 
 class GuiEvents:
     @staticmethod
-    def temporary_method():
-        print(None)
+    def database_change():
+        try:
+            data.tables()
+            data.use_database()
+        except IOError:
+            None
+            # insert error handler here
+
+    @staticmethod
+    def table_change():
+        try:
+            data.column_select()
+        except IOError as e:
+            if e.errno == errno.ENOENT:
+                print(e.strerror)
+            elif e.errno == errno.EBADF:
+                print(e.strerror)
 
 
 # Naming for all classes
 data = DataQuery
 button = ButtonPress
 gui = GuiClass
+event = GuiEvents
 
 # App is started here with the login subwindow as it's starting window
 gui.login_subwindow()
