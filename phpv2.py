@@ -3,7 +3,9 @@ import re
 import errno
 
 import mysql.connector
+
 from appJar import gui
+
 
 app = gui("PhPmyAdminV2", "1100x800")
 
@@ -27,6 +29,14 @@ class DataQuery:
 
         query = mydblogin.cursor()
         query.execute("USE " + dbname)
+
+    @staticmethod
+    def database_create():
+        print()
+
+    @staticmethod
+    def database_delete():
+        print()
 
     @staticmethod
     def tables():
@@ -133,9 +143,35 @@ class DataQuery:
         query = mydblogin.cursor()
         query.execute(sql)
 
+        loops = 1
         for instances in query:
-            
+            app.openScrollPane("RIGHT_SCROLLPANE")
+            app.addLabel("col_name_" + str(loops), instances[0], 2, loops)
+            app.stopScrollPane()
+            loops += 1
 
+        loops = 1
+        sql = ("SELECT column_name FROM information_schema.columns WHERE table_name = '" +
+               str(app.getOptionBox("Tables")) + "'")
+        query.execute(sql)
+
+        for instances in query:
+            app.openScrollPane("RIGHT_SCROLLPANE")
+            app.addLabel("col_name_" + str(loops + 1), instances[0], 2, loops + 1)
+            app.stopScrollPane()
+            loops += 1
+
+    @staticmethod
+    def column_data_select():
+        sql = "SELECT * FROM " + app.getOptionBox("Tables")
+        query = mydblogin.cursor()
+        query.execute(sql)
+
+        loops = 0
+        for instances in query:
+            how_much_cols = len(instances)
+            if 
+            loops += 1
 
     @staticmethod
     def database_login(hostname, username, password):
@@ -155,42 +191,70 @@ class GuiClass:
     def initialize_main():
         app.setBg("orange")
         app.setFont(18)
+        app.setSticky("ew")
+        app.setPadding([10, 10])
+        app.setExpand("row")
+
+        app.startFrame("LEFT", 0, 0, 2)
+        app.setSticky("ew")
+        app.setExpand("none")
+        app.setPadding([0, 10])
 
         data.databases()
-        app.addOptionBox("Databases", dblist)
-        # app.setOptionBoxChangeFunction("Databases", data.tables)
-        # app.setOptionBoxChangeFunction("Databases", data.use_database)
+        app.addOptionBox("Databases", dblist, 1, 0)
         app.setOptionBoxChangeFunction("Databases", event.database_change)
+        app.addNamedButton("Create database", "database_create", data.database_create, 2, 0)
+        app.addNamedButton("Delete database", "database_delete", data.database_delete, 3, 0)
         data.use_database()
 
-        app.addOptionBox("Tables", tblist)
+        app.addOptionBox("Tables", tblist, 4, 0)
         app.setOptionBoxChangeFunction("Tables", event.table_change)
         data.tables()
 
         app.hideSubWindow("Login")
 
         gui.sql_subwindow()
-        app.addButton("SQL", gui.show_sql_subwindow)
+
         app.addNamedButton("Drop selected table", "Drop_table_button", data.drop_table)
 
-        app.addLabelEntry("ColumnAmount")
-        app.addNamedButton("Create table", "create_table", button.create_table_subwindow_submit)
+        app.stopFrame()
+        app.addButton("SQL", gui.show_sql_subwindow, 1, 0)
+        app.addButton("Exit", button.login_cancel, 1, 1)
+
+        app.startFrame("RIGHT", 0, 2)
+        app.addLabelEntry("ColumnAmount", 0, 0)
+        app.addNamedButton("Create table", "create_table", button.create_table_subwindow_submit, 0, 1)
+        app.startScrollPane("RIGHT_SCROLLPANE", 1, 0)
+        app.addEmptyLabel("e")
+        app.stopScrollPane()
+        app.stopFrame()
+
 
         app.show()
 
     @staticmethod
     def login_subwindow():
         app.startSubWindow("Login")
+        app.startLabelFrame("Login details")
+        app.setSticky("ew")
+        app.setFont(20)
 
-        app.addLabel("login_title", "Please login")
-        app.addLabelEntry("IP")
-        app.addLabelEntry("Username")
-        app.addSecretLabelEntry("Password")
-        app.setFocus("Username")
-        app.addNamedButton("Submit", "login_submit", button.login_submit)
-        app.addNamedButton("Cancel", "login_cancel", button.login_cancel)
+        app.addLabel("login_label_1", "IP", 0, 0)
+        app.addEntry("login_ip", 0, 1)
+        app.setEntry("login_ip", "localhost")
+        app.addLabel("login_label_2", "Username", 1, 0)
+        app.addEntry("login_username", 1, 1)
+        app.setEntry("login_username", "root")
+        app.addLabel("login_label_3", "Password", 2, 0)
+        app.addSecretEntry("login_password", 2, 1)
+        app.setFocus("login_ip")
+        app.addNamedButton("Submit", "login_submit", button.login_submit, 3, 1)
+        app.addNamedButton("Cancel", "login_cancel", button.login_cancel, 3, 0)
+        app.button('Accessibility', app.showAccess, icon='ACCESS')
 
+        app.stopLabelFrame()
         app.stopSubWindow()
+
 
     @staticmethod
     def sql_subwindow():
@@ -245,6 +309,7 @@ class GuiClass:
 
             app.addNamedButton("Submit", "create_table_submit", button.create_table_submit)
             app.addNamedButton("Cancel", "create_table_cancel", button.create_table_cancel)
+
             app.stopSubWindow()
 
 
@@ -256,10 +321,10 @@ class ButtonPress:
 
     @staticmethod
     def login_submit():
-        ip = app.getEntry("IP")
-        user = app.getEntry("Username")
-        if len(app.getEntry("Password")) > 0:
-            passw = app.getEntry("Password")
+        ip = app.getEntry("login_ip")
+        user = app.getEntry("login_username")
+        if len(app.getEntry("login_password")) > 0:
+            passw = app.getEntry("login_password")
         else:
             passw = ""
         data.database_login(ip, user, passw)
@@ -313,6 +378,13 @@ class GuiEvents:
             elif e.errno == errno.EBADF:
                 print(e.strerror)
 
+    @staticmethod
+    def login_close():
+        app.stop()
+
+    @staticmethod
+    def createtable_close():
+        app.destroySubWindow("CreateTable")
 
 # Naming for all classes
 data = DataQuery
@@ -323,3 +395,4 @@ event = GuiEvents
 # App is started here with the login subwindow as it's starting window
 gui.login_subwindow()
 app.go(startWindow="Login")
+
