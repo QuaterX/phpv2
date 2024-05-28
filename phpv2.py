@@ -6,7 +6,6 @@ import mysql.connector
 
 from appJar import gui
 
-
 app = gui("PhPmyAdminV2", "1100x800")
 
 dblist = list()
@@ -134,8 +133,19 @@ class DataQuery:
         except:
             print("Something went wrong    " + sql)
 
+    global column_list
+    column_list = list()
+
     @staticmethod
     def column_select():
+        loops = 0
+        if len(column_list) > 0:
+            for instances in column_list:
+                print(instances)
+                app.removeLabel(instances)
+                loops += 1
+        column_list.clear()
+
         sql = ("SELECT column_name FROM information_schema.columns WHERE table_name = '" +
                str(app.getOptionBox("Tables")) + "' && column_key = 'PRI'")
         # print(sql)
@@ -147,31 +157,54 @@ class DataQuery:
         for instances in query:
             app.openScrollPane("RIGHT_SCROLLPANE")
             app.addLabel("col_name_" + str(loops), instances[0], 2, loops)
+            column_list.append("col_name_" + str(loops))
             app.stopScrollPane()
             loops += 1
 
         loops = 1
         sql = ("SELECT column_name FROM information_schema.columns WHERE table_name = '" +
-               str(app.getOptionBox("Tables")) + "'")
+               str(app.getOptionBox("Tables")) + "' && column_key != 'PRI'")
         query.execute(sql)
 
         for instances in query:
             app.openScrollPane("RIGHT_SCROLLPANE")
             app.addLabel("col_name_" + str(loops + 1), instances[0], 2, loops + 1)
+            column_list.append("col_name_" + str(loops + 1))
             app.stopScrollPane()
             loops += 1
 
+    global column_data_list
+    column_data_list = list()
+
     @staticmethod
     def column_data_select():
+        loops = 0
+        if len(column_data_list) > 0:
+            for instances in column_data_list:
+                print(instances)
+                app.removeLabel(instances)
+                loops += 1
+        column_data_list.clear()
+
         sql = "SELECT * FROM " + app.getOptionBox("Tables")
         query = mydblogin.cursor()
         query.execute(sql)
 
-        loops = 0
+        rows = 0
+        columns = 0
         for instances in query:
             how_much_cols = len(instances)
-            if 
-            loops += 1
+            app.openScrollPane("RIGHT_SCROLLPANE")
+            while columns < how_much_cols:
+                app.addLabel("column_data_col_" + str(columns + 1) + "_row_" + str(rows + 1), instances[columns],
+                             rows + 3, columns + 1)
+                print(("column_data_col_" + str(columns + 1) + "_row_" + str(rows + 1), instances[columns],
+                       rows + 3, columns + 1))
+                column_data_list.append("column_data_col_" + str(columns + 1) + "_row_" + str(rows + 1))
+                columns += 1
+            app.stopScrollPane()
+            columns = 0
+            rows += 1
 
     @staticmethod
     def database_login(hostname, username, password):
@@ -229,7 +262,6 @@ class GuiClass:
         app.stopScrollPane()
         app.stopFrame()
 
-
         app.show()
 
     @staticmethod
@@ -254,7 +286,6 @@ class GuiClass:
 
         app.stopLabelFrame()
         app.stopSubWindow()
-
 
     @staticmethod
     def sql_subwindow():
@@ -372,6 +403,7 @@ class GuiEvents:
     def table_change():
         try:
             data.column_select()
+            app.thread(data.column_data_select)
         except IOError as e:
             if e.errno == errno.ENOENT:
                 print(e.strerror)
@@ -386,6 +418,7 @@ class GuiEvents:
     def createtable_close():
         app.destroySubWindow("CreateTable")
 
+
 # Naming for all classes
 data = DataQuery
 button = ButtonPress
@@ -395,4 +428,3 @@ event = GuiEvents
 # App is started here with the login subwindow as it's starting window
 gui.login_subwindow()
 app.go(startWindow="Login")
-
