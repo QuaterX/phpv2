@@ -1,25 +1,28 @@
 import re
 
-import errno
-
 import mysql.connector
 
 from appJar import gui
 
 app = gui("PhPmyAdminV2", "1100x800")
 
-dblist = list()
-tblist = list()
+tblist = []
 
 
 # It's a class that will contain any methods related to databases and it's data
 class DataQuery:
     @staticmethod
     def databases():
+        global dblist
+        dblist = list()
         query = mydblogin.cursor()
         query.execute("SHOW DATABASES")
         for database_instances in query:
             dblist.append(re.sub("[(,')]", "", database_instances[0]))
+        try:
+            app.changeOptionBox("Databases", dblist)
+        except:
+            None
 
     @staticmethod
     def use_database():
@@ -31,11 +34,19 @@ class DataQuery:
 
     @staticmethod
     def database_create():
-        print()
+        new_db = app.getEntry("database_name")
+        sql = "CREATE DATABASE " + str(new_db)
+        query = mydblogin.cursor()
+        query.execute(sql)
+        data.databases()
 
     @staticmethod
     def database_delete():
-        print()
+        del_db = app.getOptionBox("Databases")
+        sql = f"DROP DATABASE {del_db}"
+        query = mydblogin.cursor()
+        query.execute(sql)
+        data.databases()
 
     @staticmethod
     def tables():
@@ -46,7 +57,7 @@ class DataQuery:
         dbname = re.sub("[(,)]", "", database)
 
         query = mydblogin.cursor()
-        sql = "SELECT table_name FROM information_schema.tables WHERE table_schema = '" + dbname + "'"
+        sql = f"SELECT table_name FROM information_schema.tables WHERE table_schema = '{dbname}'"
 
         query.execute(sql)
         for instances in query:
@@ -60,151 +71,142 @@ class DataQuery:
         tbname = re.sub("[(,')]", "", table)
 
         query = mydblogin.cursor()
-        query.execute("DROP TABLE " + tbname)
+        query.execute(f"DROP TABLE {tbname}")
         data.tables()
 
     @staticmethod
     def create_table():
         amount_of_cols = int(app.getEntry("ColumnAmount"))
-        loops = 1
-        sql = "CREATE TABLE " + app.getEntry("table_name") + " ("
-        indexes_amount = 0
-        indexes = list()
+        table_name = app.getEntry("table_name")
+        sql = f"CREATE TABLE {table_name} ("
+        indexes = []
 
-        while loops <= amount_of_cols:
-            col_name = app.getEntry("col_name_" + str(loops))
-            col_type = app.getOptionBox("col_type_" + str(loops))
-            col_length = app.getEntry("col_length_" + str(loops))
+        for i in range(1, amount_of_cols + 1):
+            col_name = app.getEntry(f"col_name_{i}")
+            col_type = app.getOptionBox(f"col_type_{i}")
+            col_length = app.getEntry(f"col_length_{i}")
+            col_isnull = "NULL" if app.getCheckBox(f"col_isnull_{i}") else "NOT NULL"
+            index_name = app.getEntry(f"index_name_{i}")
+            col_index_option = app.getOptionBox(f"col_index_{i}")
+            col_ai = "AUTO_INCREMENT" if app.getCheckBox(f"col_ai_{i}") else ""
+            col_comments = f"COMMENT '{app.getEntry(f"col_comments_{i}")}'" if app.getEntry(f"col_comments_{i}") else ""
 
-            if app.getCheckBox("col_isnull_" + str(loops)):
-                col_isnull = "NULL"
+            if col_index_option == "PRIMARY":
+                indexes.append(f"{col_index_option} KEY ({col_name})")
+            elif col_index_option in ["UNIQUE", "INDEX"]:
+                indexes.append(f"{col_index_option} {index_name} ({col_name})")
+
+            if col_type == "VARCHAR" or col_length:
+                sql += f"{col_name} {col_type}({col_length}) {col_isnull} {col_ai} {col_comments},"
             else:
-                col_isnull = "NOT NULL"
+                sql += f"{col_name} {col_type} {col_isnull} {col_ai} {col_comments},"
 
-            index_name = app.getEntry("index_name_" + str(loops))
-
-            if app.getOptionBox("col_index_" + str(loops)) == "PRIMARY":
-                col_index = app.getOptionBox("col_index_" + str(loops)) + " KEY (" + app.getEntry(
-                    "col_name_" + str(loops)) + ")"
-                indexes_amount += 1
-                indexes.append(col_index)
-            elif (app.getOptionBox("col_index_" + str(loops)) == "UNIQUE" or app.getOptionBox("col_index_" + str(loops))
-                  == "INDEX"):
-                col_index = app.getOptionBox(
-                    "col_index_" + str(loops)) + " " + index_name + "" + " (" + app.getEntry(
-                    "col_name_" + str(loops)) + ")"
-                indexes_amount += 1
-                indexes.append(col_index)
-
-            if app.getCheckBox("col_ai_" + str(loops)):
-                col_ai = "AUTO_INCREMENT"
+        for i, index in enumerate(indexes):
+            if i == len(indexes) - 1:
+                sql += f" {index});"
             else:
-                col_ai = ""
-
-            if len(app.getEntry("col_comments_" + str(loops))) > 0:
-                col_comments = "COMMENT '" + app.getEntry("col_comments_" + str(loops)) + "'"
-            else:
-                col_comments = ""
-
-            if loops <= amount_of_cols:
-                if col_type == "VARCHAR" or len(col_length) > 0:
-                    sql += ("" + col_name + " " + col_type + "(" + col_length + ") " + col_isnull + " " + col_ai + " "
-                            + col_comments + ",")
-                else:
-                    sql += "" + col_name + " " + col_type + " " + col_isnull + " " + col_ai + " " + col_comments + ","
-                loops += 1
-
-        loops = 0
-        print(indexes_amount)
-        if indexes_amount > 0:
-            while loops < indexes_amount:
-                print(loops)
-                if loops == indexes_amount - 1:
-                    sql += " " + indexes[loops] + ");"
-                    loops += 1
-                elif loops < indexes_amount:
-                    sql += " " + indexes[loops] + ", "
-                    loops += 1
+                sql += f" {index}, "
 
         query = mydblogin.cursor()
 
         try:
             query.execute(sql)
-        except:
-            print("Something went wrong    " + sql)
+        except Exception as e:
+            print(f"Something went wrong: {e}\nSQL: {sql}")
 
     global column_list
-    column_list = list()
+    column_list = []
 
     @staticmethod
     def column_select():
-        loops = 0
-        if len(column_list) > 0:
-            for instances in column_list:
-                print(instances)
-                app.removeLabel(instances)
-                loops += 1
-        column_list.clear()
+        if column_list:
+            for instance in column_list:
+                app.removeLabel(instance)
+            column_list.clear()
 
-        sql = ("SELECT column_name FROM information_schema.columns WHERE table_name = '" +
-               str(app.getOptionBox("Tables")) + "' && column_key = 'PRI'")
-        # print(sql)
-
+        sql = f"SELECT column_name FROM information_schema.columns WHERE table_name = '{app.getOptionBox('Tables')}'"
         query = mydblogin.cursor()
         query.execute(sql)
 
-        loops = 1
-        for instances in query:
+        for loops, instance in enumerate(query, start=1):
             app.openScrollPane("RIGHT_SCROLLPANE")
-            app.addLabel("col_name_" + str(loops), instances[0], 2, loops)
-            column_list.append("col_name_" + str(loops))
+            label_name = f"col_name_{loops + 1}"
+            app.addLabel(label_name, instance[0], 2, loops)
+            column_list.append(label_name)
             app.stopScrollPane()
-            loops += 1
-
-        loops = 1
-        sql = ("SELECT column_name FROM information_schema.columns WHERE table_name = '" +
-               str(app.getOptionBox("Tables")) + "' && column_key != 'PRI'")
-        query.execute(sql)
-
-        for instances in query:
-            app.openScrollPane("RIGHT_SCROLLPANE")
-            app.addLabel("col_name_" + str(loops + 1), instances[0], 2, loops + 1)
-            column_list.append("col_name_" + str(loops + 1))
-            app.stopScrollPane()
-            loops += 1
 
     global column_data_list
-    column_data_list = list()
+    column_data_list = []
+
+    global column_button_list
+    column_button_list = []
 
     @staticmethod
     def column_data_select():
-        loops = 0
-        if len(column_data_list) > 0:
+        if column_data_list:
             for instances in column_data_list:
-                print(instances)
                 app.removeLabel(instances)
-                loops += 1
+        if column_button_list:
+            for instances in column_button_list:
+                app.removeButton(instances)
         column_data_list.clear()
+        column_button_list.clear()
 
         sql = "SELECT * FROM " + app.getOptionBox("Tables")
         query = mydblogin.cursor()
         query.execute(sql)
 
         rows = 0
-        columns = 0
         for instances in query:
             how_much_cols = len(instances)
             app.openScrollPane("RIGHT_SCROLLPANE")
-            while columns < how_much_cols:
-                app.addLabel("column_data_col_" + str(columns + 1) + "_row_" + str(rows + 1), instances[columns],
-                             rows + 3, columns + 1)
-                print(("column_data_col_" + str(columns + 1) + "_row_" + str(rows + 1), instances[columns],
-                       rows + 3, columns + 1))
-                column_data_list.append("column_data_col_" + str(columns + 1) + "_row_" + str(rows + 1))
-                columns += 1
+            for columns in range(how_much_cols):
+                label_name = f"column_data_col_{str(columns + 1)}_row_{str(rows + 1)}"
+                app.addLabel(label_name, instances[columns], rows + 3, columns + 1)
+                column_data_list.append(label_name)
+            button_name = f"column_data_col_1_row_{str(rows + 1)}"
+            app.addNamedButton("Delete", button_name, data.data_delete, rows + 3, how_much_cols + 1)
+            column_button_list.append(button_name)
             app.stopScrollPane()
-            columns = 0
             rows += 1
+
+    @staticmethod
+    def column_data_append():
+        sql = f"INSERT INTO {app.getOptionBox("Tables")} VALUES ("
+        for instances in range(col_data_instances):
+            value = app.getEntry(f"col_data_entry_{instances}")
+            if value == "":
+                sql += "NULL"
+            else:
+                if type(value) is int:
+                    sql += f"{value}"
+                else:
+                    sql += f"'{value}'"
+
+            if instances == col_data_instances - 1:
+                sql += ")"
+            else:
+                sql += ", "
+        query = mydblogin.cursor()
+        query.execute(sql)
+        print(sql)
+
+    @staticmethod
+    def data_delete(btn):
+        try:
+            col_sql = (f"SELECT column_name FROM information_schema.columns WHERE table_name = '"
+                       f"{str(app.getOptionBox("Tables"))}' && column_key = 'PRI'")
+
+            get_col_query = mydblogin.cursor()
+            get_col_query.execute(col_sql)
+            col_list = [re.sub(r"[(),']", "", str(instance)) for instance in get_col_query]
+
+            del_sql = (f"DELETE FROM {str(app.getOptionBox("Tables"))} WHERE {str(col_list[0])} = "
+                       f"{str(app.getLabel(btn))}")
+            del_query = mydblogin.cursor()
+            del_query.execute(del_sql)
+        except Exception as e:
+            print(f"Something went wrong {e}")
 
     @staticmethod
     def database_login(hostname, username, password):
@@ -236,8 +238,8 @@ class GuiClass:
         data.databases()
         app.addOptionBox("Databases", dblist, 1, 0)
         app.setOptionBoxChangeFunction("Databases", event.database_change)
-        app.addNamedButton("Create database", "database_create", data.database_create, 2, 0)
-        app.addNamedButton("Delete database", "database_delete", data.database_delete, 3, 0)
+        app.addNamedButton("Create database", "database_create", button.create_db_subwindow_submit, 2, 0)
+        app.addNamedButton("Delete database", "database_delete", button.delete_db, 3, 0)
         data.use_database()
 
         app.addOptionBox("Tables", tblist, 4, 0)
@@ -257,10 +259,13 @@ class GuiClass:
         app.startFrame("RIGHT", 0, 2)
         app.addLabelEntry("ColumnAmount", 0, 0)
         app.addNamedButton("Create table", "create_table", button.create_table_subwindow_submit, 0, 1)
+        app.addNamedButton("Add data", "add_data", button.add_data, 0, 2)
         app.startScrollPane("RIGHT_SCROLLPANE", 1, 0)
         app.addEmptyLabel("e")
         app.stopScrollPane()
         app.stopFrame()
+
+        gui.column_data_append_subwindow()
 
         app.show()
 
@@ -314,7 +319,6 @@ class GuiClass:
         if len(app.getEntry("ColumnAmount")) > 0:
             app.startSubWindow("CreateTable")
             amount_of_cols = int(app.getEntry("ColumnAmount"))
-            loops = 1
 
             app.addLabel("TableName", "Table Name", 0, 0)
             app.addLabelEntry("table_name", 0, 1)
@@ -327,21 +331,50 @@ class GuiClass:
             app.addLabel("A_I", "A_I", 1, 6)
             app.addLabel("Comments", "Comments", 1, 7)
 
-            while loops <= amount_of_cols:
-                app.addLabelEntry("col_name_" + str(loops), (loops + 1), 0)
-                app.addOptionBox("col_type_" + str(loops), ["INT", "VARCHAR", "TEXT", "DATE"], (loops + 1), 1)
-                app.addLabelEntry("col_length_" + str(loops), (loops + 1), 2)
-                app.addCheckBox("col_isnull_" + str(loops), (loops + 1), 3)
-                app.addOptionBox("col_index_" + str(loops), ["---", "PRIMARY", "UNIQUE", "INDEX"], (loops + 1), 4)
-                app.addLabelEntry("index_name_" + str(loops), (loops + 1), 5)
-                app.addCheckBox("col_ai_" + str(loops), (loops + 1), 6)
-                app.addLabelEntry("col_comments_" + str(loops), (loops + 1), 7)
-                loops += 1
+            for i in range(1, amount_of_cols + 1):
+                app.addLabelEntry(f"col_name_{str(i)}", i + 1, 0)
+                app.addOptionBox(f"col_type_{str(i)}", ["INT", "VARCHAR", "TEXT", "DATE"], i + 1, 1)
+                app.addLabelEntry(f"col_length_{str(i)}", i + 1, 2)
+                app.addCheckBox(f"col_isnull_{str(i)}", i + 1, 3)
+                app.addOptionBox(f"col_index_{str(i)}", ["---", "PRIMARY", "UNIQUE", "INDEX"], i + 1, 4)
+                app.addLabelEntry(f"index_name_{str(i)}", i + 1, 5)
+                app.addCheckBox(f"col_ai_{str(i)}", i + 1, 6)
+                app.addLabelEntry(f"col_comments_{str(i)}", i + 1, 7)
 
             app.addNamedButton("Submit", "create_table_submit", button.create_table_submit)
             app.addNamedButton("Cancel", "create_table_cancel", button.create_table_cancel)
 
             app.stopSubWindow()
+
+    @staticmethod
+    def create_db_subwindow():
+        app.startSubWindow("CreateDatabase")
+
+        app.addEntry("database_name", 0, 0, 2)
+        app.addNamedButton("Submit", "create_db_submit", button.create_db_submit, 1, 0)
+        app.addNamedButton("Cancel", "create_db_cancel", button.create_db_cancel, 1, 1)
+
+        app.stopSubWindow()
+
+    @staticmethod
+    def column_data_append_subwindow():
+        global col_data_instances
+        col_data_instances = 0
+        col_select_sql = (f"SELECT column_name FROM information_schema.columns WHERE table_name = '"
+                          f"{str(app.getOptionBox("Tables"))}'")
+        query = mydblogin.cursor()
+        query.execute(col_select_sql)
+        col_name_list = [re.sub(r"[(),']", "", str(instance)) for instance in query]
+
+        app.startSubWindow("ColumnDataAppend")
+
+        for i, col_name in enumerate(col_name_list):
+            app.addLabel(f"col_data_name_{i}", col_name, i, 0)
+            app.addEntry(f"col_data_entry_{i}", i, 1)
+            col_data_instances += 1
+        app.addNamedButton("Cancel", "column_data_append_cancel", button.column_data_append_cancel, col_data_instances + 1, 0)
+        app.addNamedButton("Submit", "column_data_append_submit", button.column_data_append_submit, col_data_instances + 1, 1)
+        app.stopSubWindow()
 
 
 # It's a class for methods that will be called upon pressing corresponding buttons
@@ -380,6 +413,8 @@ class ButtonPress:
     def create_table_submit():
         app.hideSubWindow("CreateTable")
 
+        data.tables()
+
         data.create_table()
 
         app.destroySubWindow("CreateTable")
@@ -388,6 +423,43 @@ class ButtonPress:
     def create_table_cancel():
         app.destroySubWindow("CreateTable")
 
+    @staticmethod
+    def create_db_subwindow_submit():
+        gui.create_db_subwindow()
+
+        app.showSubWindow("CreateDatabase")
+
+    @staticmethod
+    def create_db_submit():
+        data.database_create()
+
+        data.databases()
+
+        app.destroySubWindow("CreateDatabase")
+
+    @staticmethod
+    def create_db_cancel():
+        app.destroySubWindow("CreateDatabase")
+
+    @staticmethod
+    def delete_db():
+        data.database_delete()
+
+    @staticmethod
+    def column_data_append_submit():
+        data.column_data_append()
+
+    @staticmethod
+    def column_data_append_cancel():
+        event.column_data_append_clear()
+
+    @staticmethod
+    def add_data():
+        try:
+            gui.column_data_append_subwindow()
+        except:
+            None
+        app.showSubWindow("ColumnDataAppend")
 
 class GuiEvents:
     @staticmethod
@@ -395,20 +467,16 @@ class GuiEvents:
         try:
             data.tables()
             data.use_database()
-        except IOError:
+        except:
             None
-            # insert error handler here
 
     @staticmethod
     def table_change():
         try:
             data.column_select()
             app.thread(data.column_data_select)
-        except IOError as e:
-            if e.errno == errno.ENOENT:
-                print(e.strerror)
-            elif e.errno == errno.EBADF:
-                print(e.strerror)
+        except:
+            None
 
     @staticmethod
     def login_close():
@@ -417,6 +485,10 @@ class GuiEvents:
     @staticmethod
     def createtable_close():
         app.destroySubWindow("CreateTable")
+
+    @staticmethod
+    def column_data_append_clear():
+        app.destroySubWindow("ColumnDataAppend")
 
 
 # Naming for all classes
