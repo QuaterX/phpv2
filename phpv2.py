@@ -189,6 +189,7 @@ class DataQuery:
                 sql += ", "
         query = mydblogin.cursor()
         query.execute(sql)
+        mydblogin.commit()
         print(sql)
 
     @staticmethod
